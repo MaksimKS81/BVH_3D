@@ -7,9 +7,13 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 from bsb_bvh_process import bvh_to_dataframe, angle_between_vectors_from_three_points
 from basketball_analysis import process_basketball_data, find_wrist_head_threshold_indices, find_all_wrist_head_threshold_intervals,  find_max_angle_velocity_indices
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-
+logger.info("Starting BVH 3D application...")
 
 # functions
 
@@ -208,14 +212,33 @@ def plot_all_data(df):
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'bvh'}
 
+logger.info("Creating Flask application...")
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Basic configuration
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+logger.info("Flask app configured successfully")
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal server error: {str(error)}")
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for deployment verification"""
+    return jsonify({"status": "healthy", "message": "BVH 3D app is running"}), 200
 
 @app.route('/')
 def home():
@@ -224,16 +247,19 @@ def home():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        try:
+    try:
+        logger.info("File upload request received")
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part'}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            logger.info(f"File saved: {filepath}")
+            
             df = bvh_to_dataframe(filepath)
             app.config['last_df'] = df  # store DataFrame for later frame plotting
 
@@ -300,8 +326,8 @@ def upload_file():
                 'n_frames': n_frames,
                 'frame0': fig3_json
             })
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
     return jsonify({'error': 'Invalid file type'}), 400
 
 @app.route('/plot_data', methods=['POST'])
@@ -363,4 +389,6 @@ def frame_plot():
     return jsonify({'figure': fig_json})
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    port = int(os.environ.get('PORT', 8080))
+    logger.info(f"Starting Flask app on host=0.0.0.0, port={port}")
+    app.run(host='0.0.0.0', port=port, debug=False)

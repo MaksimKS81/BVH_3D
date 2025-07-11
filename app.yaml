@@ -14,9 +14,9 @@
 
 runtime: python312
 
-entrypoint: gunicorn -b :$PORT app:app
+entrypoint: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 0 app:app
 
-automatic_scaling:    # Standard supports automatic_scaling
+automatic_scaling:
   min_instances: 0
   max_instances: 2
 
