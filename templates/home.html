@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BVH 3D Visualization</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        #plots { display: flex; gap: 20px; }
+        #plot, #scatter3d { flex: 1; height: 600px; }
+        #slider-container { margin-top: 20px; }
+        #upload-form { margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <h2>BVH 3D Visualization</h2>
+    <form id="upload-form" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".bvh" required />
+        <button type="submit">Upload BVH</button>
+    </form>
+    <div id="plots" style="display:flex; gap:20px;">
+        <div id="plot" style="flex:1;"></div>
+        <div id="scatter-section" style="display:flex; flex-direction:column; flex:1;">
+            <div id="scatter3d" style="flex:1;"></div>
+            <div id="slider-container" style="margin-top:10px; text-align:center;">
+                <input type="range" id="frame-slider" min="0" max="0" value="0" />
+                <input type="number" id="frame-input" min="0" max="0" value="0" style="width:60px; margin-left:10px;" />
+                <span style="margin-left:8px;">Frame: <span id="frame-value">0</span></span>
+            </div>
+        </div>
+    </div>
+    <script>
+const form = document.getElementById('upload-form');
+const plotDiv = document.getElementById('plot');
+const scatterDiv = document.getElementById('scatter3d');
+const slider = document.getElementById('frame-slider');
+const frameValue = document.getElementById('frame-value');
+const frameInput = document.getElementById('frame-input');
+
+// Function to fetch and render 3D frame plot
+function updateFrame(idx) {
+  frameValue.textContent = idx;
+  scatterDiv.innerHTML = '<p>Loading frame '+idx+'...</p>';
+  fetch('/frame_plot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ index: idx })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.figure && d.figure.data) {
+      Plotly.newPlot('scatter3d', d.figure.data, d.figure.layout);
+    } else if (d.error) {
+      scatterDiv.innerHTML = '<p>Error: ' + d.error + '</p>';
+    } else {
+      scatterDiv.innerHTML = '<p>No figure returned</p>';
+    }
+  })
+  .catch(err => {
+    scatterDiv.innerHTML = '<p>Frame plot failed: ' + err + '</p>';
+  });
+}
+
+form.addEventListener('submit', function(e) {
+  e.preventDefault();
+  const formData = new FormData(this);
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(res => res.json())
+    .then(json => {
+      if (!json.success) {
+        plotDiv.innerHTML = '<p>Error: ' + (json.error || 'Upload failed') + '</p>';
+        return;
+      }
+      // Render main analysis plot
+      Plotly.newPlot('plot', json.figure.data, json.figure.layout);
+
+      // Configure slider
+      slider.max = json.n_frames - 1;
+      slider.value = 0;
+      frameInput.max = json.n_frames - 1;
+      frameInput.value = 0;
+      frameValue.textContent = 0;
+
+      // Render initial 3D frame0 if available
+      if (json.frame0) {
+        Plotly.newPlot('scatter3d', json.frame0.data, json.frame0.layout);
+      } else {
+        updateFrame(0);
+      }
+    })
+    .catch(err => {
+      plotDiv.innerHTML = '<p>Upload failed: ' + err + '</p>';
+    });
+});
+
+// Slider event
+slider.oninput = function() {
+  const idx = +this.value;
+  frameInput.value = idx;
+  updateFrame(idx);
+};
+
+// Frame input event
+frameInput.oninput = function() {
+  let idx = +this.value;
+  // Clamp to slider range
+  if (idx < +slider.min) idx = +slider.min;
+  if (idx > +slider.max) idx = +slider.max;
+  slider.value = idx;
+  updateFrame(idx);
+};
+    </script>
+</body>
+</html>
