@@ -31,12 +31,15 @@ def plot_3d_points(df, point_cols, index):
         zs.append(z)
         labels.append(cols[0].rsplit('_', 1)[0])  # Use joint name as label
 
-    # Calculate the full Y range for all frames and all selected points
-    y_all = []
+    # Calculate the full range for all axes across all frames and selected points
+    x_all, y_all, z_all = [], [], []
     for cols in point_cols:
+        x_all.extend(df[cols[0]].values)
         y_all.extend(df[cols[1]].values)
-    y_min = min(y_all)
-    y_max = max(y_all)
+        z_all.extend(df[cols[2]].values)
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    z_min, z_max = min(zs), max(zs)
 
     fig = go.Figure(data=[
         go.Scatter3d(
@@ -51,19 +54,21 @@ def plot_3d_points(df, point_cols, index):
     fig.update_layout(
         scene=dict(
             xaxis_title='X',
-            yaxis_title='Y',  # Y is vertical
+            yaxis_title='Y',
             zaxis_title='Z',
-            yaxis=dict(range=[0, 2.5]),  # <-- always show full Y range
-            aspectmode='data',
+#            xaxis=dict(range=[x_min, x_max]),
+            yaxis=dict(range=[0, 2.5]),
+#            zaxis=dict(range=[z_min, z_max]),
+            aspectmode='data',  # keeps proportions correct
             camera=dict(
-                eye=dict(x=0, y=0, z=2.0),  # Z "to you"
+                eye=dict(x=0, y=0, z=2.0),
                 up=dict(x=0, y=1, z=0)
             )
         ),
         title=f'3D Skeleton Points at frame: #{index}',
-        width=600,
+        width=400,
         height=800,
-        autosize=True,
+        autosize=False,
         margin=dict(l=0, r=0, b=0, t=20)
     )
     print(f"Generating 3D plot for frame {index}")
@@ -194,7 +199,7 @@ def plot_all_data(df):
     fig4.update_layout(
         autosize=False,
         width=1000,
-        height=600,
+        height=800,
     )
 
     #fig4.show()
