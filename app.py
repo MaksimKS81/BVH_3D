@@ -209,7 +209,7 @@ def plot_all_data(df):
     #fig4.show()
     return fig4
 
-UPLOAD_FOLDER = 'uploads'
+UPLOAD_FOLDER = '/tmp/uploads'
 ALLOWED_EXTENSIONS = {'bvh'}
 
 logger.info("Creating Flask application...")
@@ -220,8 +220,19 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 logger.info("Flask app configured successfully")
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# Create upload folder in /tmp (writable on App Engine)
+try:
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
+        logger.info(f"Created upload folder: {UPLOAD_FOLDER}")
+    else:
+        logger.info(f"Upload folder already exists: {UPLOAD_FOLDER}")
+except OSError as e:
+    logger.error(f"Failed to create upload folder {UPLOAD_FOLDER}: {e}")
+    # Fall back to using /tmp directly if subdirectory creation fails
+    UPLOAD_FOLDER = '/tmp'
+    app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+    logger.info(f"Using fallback upload folder: {UPLOAD_FOLDER}")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
